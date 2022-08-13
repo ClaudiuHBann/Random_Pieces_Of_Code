@@ -4,36 +4,36 @@
 class UUID_RAII
 {
 #ifdef UNICODE
-	typedef RPC_WSTR RPC_STR;
+	typedef ::RPC_WSTR RPC_STR;
 #else
-	typedef RPC_CSTR RPC_STR;
+	typedef ::RPC_CSTR RPC_STR;
 #endif // UNICODE
 
 public:
 	UUID_RAII() {
-		if (UuidCreate(&mUUID) == RPC_S_UUID_NO_ADDRESS) {
+		if (::UuidCreate(&mUUID) == RPC_S_UUID_NO_ADDRESS) {
 			return;
 		}
 
-		mStatus = UuidToString(&mUUID, &mUUIDString);
+		mStatus = ::UuidToString(&mUUID, &mUUIDString);
 	}
 
 	~UUID_RAII() {
 		if (!mStatus) {
-			RpcStringFree(&mUUIDString);
+			::RpcStringFree(&mUUIDString);
 		}
 	}
 
-	inline const auto& GetUUIDString() const {
+	inline const RPC_STR& GetUUIDString() const {
 		return mUUIDString;
 	}
 
-	inline const UUID& GetUUID() const {
+	inline const ::UUID& GetUUID() const {
 		return mUUID;
 	}
 
 private:
 	::UUID mUUID{};
 	RPC_STR mUUIDString = nullptr;
-	RPC_STATUS mStatus = 0;
+	::RPC_STATUS mStatus = 0;
 };
