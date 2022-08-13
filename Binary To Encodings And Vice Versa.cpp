@@ -1,6 +1,7 @@
 #define BSWAP16(value) (unsigned short)(((value) << 8) | (((value) >> 8) & 0xFF))
 #define BSWAP32(value) (unsigned int)((((value) & 0xFF000000) >> 24) | (((value) & 0x00FF0000) >> 8) | (((value) & 0x0000FF00) << 8) | (((value) & 0x000000FF) << 24))
 
+#include <string>
 #include <bitset>
 
 std::string ASCIIToBinary(const std::string& text, const unsigned int blockSize = 8, const std::string& separator = " ")
