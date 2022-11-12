@@ -1,21 +1,21 @@
-using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+
 using System.Xml.Serialization;
+
 using System.Text;
 
-namespace E2EE
+namespace Cryptography
 {
     class RSA
     {
-        public RSACryptoServiceProvider? RSACSP { get; set; }
-        public RSAParameters? RSAPrivateKey { get; set; }
-        public RSAParameters? RSAPublicKey { get; set; }
-        public Encoding DefaultEncoding { get; set; }
+        public RSACryptoServiceProvider? RSACSP = null;
+        public RSAParameters? RSAPrivateKey = null;
+        public RSAParameters? RSAPublicKey = null;
 
-        public RSA(int keySize = 4096, Encoding? encoding = null)
+        public Encoding DefaultEncoding = Encoding.Unicode;
+
+        public RSA(int keySize = 4096)
         {
-            DefaultEncoding = encoding ?? Encoding.Unicode;
-
             try
             {
                 RSACSP = new(keySize);
@@ -23,55 +23,63 @@ namespace E2EE
                 RSAPrivateKey = RSACSP.ExportParameters(true);
                 RSAPublicKey = RSACSP.ExportParameters(false);
             }
-            catch (CryptographicException ce)
+            catch (Exception e)
             {
-                Console.WriteLine(ce.Message);
+                Console.WriteLine(e.Message);
             }
         }
 
         public byte[]? Encrypt(byte[] data, bool doOAEPPadding = true)
         {
+            if (RSACSP == null || RSAPublicKey == null)
+            {
+                return null;
+            }
+
             try
             {
-                if (RSACSP != null && RSAPublicKey != null)
-                {
-                    RSACSP.ImportParameters((RSAParameters)RSAPublicKey);
-                    return RSACSP.Encrypt(data, doOAEPPadding);
-                }
+                RSACSP.ImportParameters((RSAParameters)RSAPublicKey);
+                return RSACSP.Encrypt(data, doOAEPPadding);
             }
-            catch (CryptographicException ce)
+            catch (Exception e)
             {
-                Console.WriteLine(ce.ToString());
+                Console.WriteLine(e.Message);
+                return null;
             }
-
-            return null;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public byte[]? EncryptAsString(string data, bool doOAEPPadding = true)
         {
-            return Encrypt(DefaultEncoding.GetBytes(data), doOAEPPadding);
+            try
+            {
+                return Encrypt(DefaultEncoding.GetBytes(data), doOAEPPadding);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return null;
+            }
         }
 
         public byte[]? Decrypt(byte[] data, bool doOAEPPadding = true)
         {
+            if (RSACSP == null || RSAPrivateKey == null)
+            {
+                return null;
+            }
+
             try
             {
-                if (RSACSP != null && RSAPrivateKey != null)
-                {
-                    RSACSP.ImportParameters((RSAParameters)RSAPrivateKey);
-                    return RSACSP.Decrypt(data, doOAEPPadding);
-                }
+                RSACSP.ImportParameters((RSAParameters)RSAPrivateKey);
+                return RSACSP.Decrypt(data, doOAEPPadding);
             }
-            catch (CryptographicException ce)
+            catch (Exception e)
             {
-                Console.WriteLine(ce.ToString());
+                Console.WriteLine(e.Message);
+                return null;
             }
-
-            return null;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string DecryptAsString(byte[] data, bool doOAEPPadding = true)
         {
             var dataAsBytes = Decrypt(data, doOAEPPadding);
@@ -80,26 +88,40 @@ namespace E2EE
                 return "";
             }
 
-            return DefaultEncoding.GetString(dataAsBytes);
+            try
+            {
+                return DefaultEncoding.GetString(dataAsBytes);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return "";
+            }
         }
 
         private string GetKey(bool publicKey = true)
         {
-            StringWriter stringWriter = new();
-            XmlSerializer xmlSerializer = new(typeof(RSAParameters));
+            try
+            {
+                StringWriter stringWriter = new();
+                XmlSerializer xmlSerializer = new(typeof(RSAParameters));
 
-            xmlSerializer.Serialize(stringWriter, (publicKey ? RSAPublicKey : RSAPrivateKey));
+                xmlSerializer.Serialize(stringWriter, (publicKey ? RSAPublicKey : RSAPrivateKey));
 
-            return stringWriter.ToString();
+                return stringWriter.ToString();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return "";
+            }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string GetKeyPublicAsString()
         {
             return GetKey();
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string GetKeyPrivateAsString()
         {
             return GetKey(false);
@@ -107,19 +129,18 @@ namespace E2EE
 
         public static RSAParameters? StringToKeys(string str)
         {
-            StringReader stringReader = new(str);
-            XmlSerializer xmlSerializer = new(typeof(RSAParameters));
-
             try
             {
+                StringReader stringReader = new(str);
+                XmlSerializer xmlSerializer = new(typeof(RSAParameters));
+
                 return (RSAParameters?)xmlSerializer.Deserialize(stringReader);
             }
-            catch (InvalidOperationException ioe)
+            catch (Exception e)
             {
-                Console.WriteLine(ioe.Message);
+                Console.WriteLine(e.Message);
+                return null;
             }
-
-            return null;
         }
     }
 }
