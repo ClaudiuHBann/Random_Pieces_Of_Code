@@ -1,7 +1,8 @@
-#include <map>
-#include <string>
-
+#include <iostream>
 #include <chrono>
+#include <string>
+#include <mutex>
+#include <map>
 
 using namespace std;
 using namespace chrono;
@@ -10,45 +11,94 @@ class Stopwatch {
 public:
     inline Stopwatch() = default;
 
-    inline Stopwatch(const string& name, const bool init = false) {
-        Create(name, init);
+    inline Stopwatch(const string& name, const bool start = false) {
+        Create(name, start);
     }
 
-    inline uint64_t Size() const {
+    inline size_t Size() {
+        scoped_lock guard(mMutex);
         return mStopwatches.size();
     }
 
-    inline bool Create(const string& name, const bool init = false, const bool overwrite = false) {
-        if (!name.empty() && ((mStopwatches.find(name) != mStopwatches.end() && overwrite) || mStopwatches.find(name) == mStopwatches.end())) {
-            mStopwatches[name] = init ? steady_clock::now() : steady_clock::time_point();
+    inline bool Create(const string& name, const bool start = false, const bool overwrite = false) {
+        if (name.empty()) {
+            return false;
         }
 
-        return !name.empty();
+        scoped_lock guard(mMutex);
+        if (mStopwatches.find(name) != mStopwatches.end() && !overwrite) {
+            return false;
+        }
+
+        mStopwatches[name] = { start ? steady_clock::now() : steady_clock::time_point(), start };
+        return true;
     }
 
-    inline bool Remove(const string& name) {
-        return mStopwatches.erase(name);
-    }
-
-    inline bool Reset(const string& name) {
+    inline bool Pause(const string& name) {
+        scoped_lock guard(mMutex);
         if (mStopwatches.find(name) != mStopwatches.end()) {
-            mStopwatches[name] = steady_clock::now();
+            // a paused stopwatch will contain the elapsed time
+            mStopwatches[name] = { steady_clock::time_point(GetTimeElapsed(name)), false };
             return true;
         }
 
         return false;
     }
 
-    inline duration<long long, nano> GetTimeElapsed(const string& name) {
-        duration<long long, nano> timePoint {};
-
-        if (mStopwatches.find(name) != mStopwatches.end()) {
-            timePoint = steady_clock::now() - mStopwatches[name];
+    inline bool Resume(const string& name) {
+        scoped_lock guard(mMutex);
+        if (mStopwatches.find(name) != mStopwatches.end() && !mStopwatches[name].second) {
+            // a paused stopwatch contains the elapsed time
+            // so we need to take the current time and subtract from current moment
+            steady_clock::time_point nowBackwards(steady_clock::now() - mStopwatches[name].first);
+            mStopwatches[name] = { nowBackwards, true };
+            return true;
         }
 
-        return timePoint;
+        return false;
+    }
+
+    inline bool Reset(const string& name, const bool start = true) {
+        return Create(name, start, true);
+    }
+
+    inline bool Remove(const string& name) {
+        scoped_lock guard(mMutex);
+        return mStopwatches.erase(name);
+    }
+
+    inline nanoseconds GetTimeElapsed(const string& name) {
+        scoped_lock guard(mMutex);
+        if (mStopwatches.find(name) != mStopwatches.end()) {
+            if (mStopwatches[name].second) {
+                return steady_clock::now() - mStopwatches[name].first;
+            } else {
+                // a paused stopwatch already contains the elapsed time
+                return mStopwatches[name].first.time_since_epoch();
+            }
+        }
+
+        return {};
     }
 
 protected:
-    map<string, steady_clock::time_point> mStopwatches;
+    map<string, pair<steady_clock::time_point, bool>> mStopwatches;
+    //  name         time now/elapsed          running
+
+private:
+    mutex mMutex;
 };
+
+int main() {
+    Stopwatch stopwatch("all", true);
+    cout << R"(Created stopwatch "all"...)" << endl;
+
+    stopwatch.Create("test", true);
+    cout << R"(Created stopwatch "test"...)" << endl;
+    cout << "Waiting..." << endl;
+    cout << R"(Stopwatch "test" time elapsed is )" << stopwatch.GetTimeElapsed("test") << endl;
+
+    cout << R"(Stopwatch "all" time elapsed is )" << stopwatch.GetTimeElapsed("all") << endl;
+
+    return 0;
+}
