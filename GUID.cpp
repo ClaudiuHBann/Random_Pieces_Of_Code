@@ -11,7 +11,7 @@ class UUIDEx {
 public:
     inline UUIDEx()
         : mStatus(::UuidCreate(&mUUID)),
-        mIsGlobal(mStatus == RPC_S_UUID_LOCAL_ONLY) {}
+        mIsGlobal(mStatus != RPC_S_UUID_LOCAL_ONLY) {}
 
     inline ~UUIDEx() {
         if (mUUIDString && IsGood()) {
