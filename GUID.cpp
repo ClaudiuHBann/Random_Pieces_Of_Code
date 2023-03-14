@@ -1,61 +1,97 @@
 #include <Rpc.h>
 #pragma comment(lib, "Rpcrt4.lib")
 
-class UUIDEx {
-#ifdef UNICODE
-    typedef ::RPC_WSTR RPC_STR;
+namespace Utility {
+	class GUID {
+#if defined(UNICODE) || defined(_UNICODE)
+		using RPC_STR = ::RPC_WSTR;
 #else
-    typedef ::RPC_CSTR RPC_STR;
-#endif // UNICODE
+		using RPC_STR = ::RPC_CSTR;
+#endif // defined(UNICODE) || defined(_UNICODE)
 
-public:
-    inline UUIDEx()
-        : mStatus(::UuidCreate(&mUUID)),
-        mIsGlobal(mStatus != RPC_S_UUID_LOCAL_ONLY) {}
+	public:
+		GUID()
+			: mStatus(::UuidCreate(&mUUID)),
+			mIsGlobal(mStatus != RPC_S_UUID_LOCAL_ONLY),
+			mIsGood(mStatus != RPC_S_UUID_NO_ADDRESS) {
+		}
 
-    inline ~UUIDEx() {
-        if (mUUIDString && IsGood()) {
-            ::RpcStringFree(&mUUIDString);
-        }
-    }
+		~GUID() {
+			Uninitialize();
+		}
 
-    inline bool IsGlobal() const {
-        return mIsGlobal;
-    }
+		GUID(const GUID& guid) {
+			*this = guid;
+		}
 
-    inline const RPC_STR& GetString() {
-        if (!mUUIDString && IsGood()) {
-            mStatus = ::UuidToString(&mUUID, &mUUIDString);
-            mUUIDStringTryCreate = true;
-        }
+		GUID& operator=(const GUID& right) {
+			Uninitialize();
 
-        return IsGood() ? mUUIDString : mUUIDStringDefault;
-    }
+			mUUID = right.mUUID;
+			mStatus = RPC_S_OK;
+			mIsGood = right.mIsGood;
+			mIsGlobal = right.mIsGlobal;
 
-    inline const ::UUID& Get() const {
-        return IsGood() ? mUUID : mUUIDDefault;
-    }
+			return *this;
+		}
 
-private:
-    inline bool IsGood() const {
-        if (mUUIDStringTryCreate) {
-            return mStatus != RPC_S_OUT_OF_MEMORY;
-        } else {
-            if (mIsGlobal) {
-                return true;
-            } else {
-                return mStatus != RPC_S_UUID_NO_ADDRESS;
-            }
-        }
-    }
+		bool IsGlobal() const {
+			return mIsGlobal;
+		}
 
-    ::UUID mUUID {};
-    static inline ::UUID mUUIDDefault {};
+		bool IsGood() const {
+			return mIsGood;
+		}
 
-    RPC_STR mUUIDString = nullptr;
-    static inline RPC_STR mUUIDStringDefault = (RPC_STR)TEXT("");
+		void SetUUID(const ::UUID& uuid) {
+			Uninitialize();
 
-    ::RPC_STATUS mStatus = 0;
-    bool mIsGlobal = true;
-    bool mUUIDStringTryCreate = false;
-};
+			mUUID = uuid;
+			mStatus = RPC_S_OK;
+			mIsGood = true;
+			mIsGlobal = false;
+		}
+
+		void SetUUID(RPC_CSTR uuidStr) {
+			Uninitialize();
+
+			mStatus = ::UuidFromString(uuidStr, &mUUID);
+			mIsGood = mStatus == RPC_S_OK;
+			mIsGlobal = false;
+		}
+
+		const RPC_STR& GetStr() {
+			if (!mUUIDString) {
+				mStatus = ::UuidToString(&mUUID, &mUUIDString);
+			}
+
+			return mStatus == RPC_S_OK ? mUUIDString : mUUIDStringDefault;
+		}
+
+		const ::UUID& GetUUID() const {
+			return mIsGood ? mUUID : mUUIDDefault;
+		}
+
+		::RPC_STATUS GetStatus() const {
+			return mStatus;
+		}
+
+	private:
+		void Uninitialize() {
+			if (mUUIDString) {
+				::RpcStringFree(&mUUIDString);
+				mUUIDString = nullptr;
+			}
+		}
+
+		::UUID mUUID = GUID_NULL;
+		static inline ::UUID mUUIDDefault {};
+
+		RPC_STR mUUIDString {};
+		static inline RPC_STR mUUIDStringDefault = (RPC_STR)TEXT("");
+
+		::RPC_STATUS mStatus {};
+		bool mIsGood {};
+		bool mIsGlobal {};
+	};
+}
