@@ -84,7 +84,7 @@ namespace Utility {
 			::OutputDebugString(str);
 		}
 
-		if (GetConsoleWindow()) {
+		if (::GetConsoleWindow()) {
 #if defined(_UNICODE) || defined(UNICODE)
 			wcout << str;
 #else
