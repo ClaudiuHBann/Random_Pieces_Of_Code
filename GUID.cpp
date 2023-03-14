@@ -34,6 +34,10 @@ namespace Utility {
 
 			return *this;
 		}
+		
+		bool operator==(const GUID& right) {
+			return mUUID == right.mUUID;
+		}
 
 		bool IsGlobal() const {
 			return mIsGlobal;
