@@ -29,6 +29,11 @@ class BroadcastIPFinder
         return mLocalIPs;
     }
 
+    static constexpr auto MakeBroadcastAddressIPv4(const uint32_t aAddress, const uint32_t aMask)
+    {
+        return aAddress | ~aMask;
+    }
+
   private:
     PIP_ADAPTER_ADDRESSES GetAdaptersAddressesIPv4()
     {
@@ -58,11 +63,6 @@ class BroadcastIPFinder
         } while (errorCode == ERROR_BUFFER_OVERFLOW);
 
         return ipAdapterAddresses;
-    }
-
-    constexpr auto MakeBroadcastAddressIPv4(const uint32_t aAddress, const uint32_t aMask)
-    {
-        return aAddress | ~aMask;
     }
 
     vector<uint32_t> _GetBroadcastAddressesIPv4()
