@@ -68,8 +68,8 @@ class BroadcastIPFinder
     {
         for (const auto &[ipv4, mask] : GetNICsIPv4AndMask())
         {
-            mLocalIPs.push_back(htonl(ipv4));
-            mBroadcastIPs.push_back(htonl(MakeBroadcastAddressIPv4(ipv4, mask)));
+            mLocalIPs.push_back(ipv4);
+            mBroadcastIPs.push_back(MakeBroadcastAddressIPv4(ipv4, mask));
         }
 
         // we are adding the 255.255.255.255 broadcast address manually
@@ -107,11 +107,11 @@ class BroadcastIPFinder
                     if (unicastAddressCurrent->OnLinkPrefixLength <= 32)
                     {
                         mask <<= 32 - unicastAddressCurrent->OnLinkPrefixLength;
-                        mask = htonl(mask);
                     }
 
                     auto addr = (sockaddr_in *)unicastAddressCurrent->Address.lpSockaddr;
-                    nicsIPv4AndMask.emplace_back(addr->sin_addr.S_un.S_addr, mask);
+                    // the addr is in network byte order so we need to convert it in host byte order
+                    nicsIPv4AndMask.emplace_back(ntohl(addr->sin_addr.S_un.S_addr), mask);
                 }
             }
         }
@@ -132,7 +132,7 @@ int main()
     for (const auto address : broadcastIPFinder.GetLocalIPv4s())
     {
         in_addr addr{};
-        addr.S_un.S_addr = ntohl(address); // convert network byte order to host byte order
+        addr.S_un.S_addr = htonl(address); // convert host byte order to network byte order
 
         wchar_t ip[INET6_ADDRSTRLEN]{};
         InetNtopW(AF_INET, &addr, ip, INET6_ADDRSTRLEN);
@@ -143,7 +143,7 @@ int main()
     for (const auto address : broadcastIPFinder.GetBroadcastAddressesIPv4())
     {
         in_addr addr{};
-        addr.S_un.S_addr = ntohl(address); // convert network byte order to host byte order
+        addr.S_un.S_addr = htonl(address); // convert host byte order to network byte order
 
         wchar_t ip[INET6_ADDRSTRLEN]{};
         InetNtopW(AF_INET, &addr, ip, INET6_ADDRSTRLEN);
