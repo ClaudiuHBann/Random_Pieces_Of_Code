@@ -13,10 +13,9 @@ using namespace std;
 class BroadcastIPFinder
 {
   public:
-    BroadcastIPFinder() : mBroadcastIPs(_GetBroadcastAddressesIPv4())
+    BroadcastIPFinder()
     {
-        // we are adding the 255.255.255.255 broadcast address manually
-        mBroadcastIPs.push_back(numeric_limits<uint32_t>::max());
+        CreateBroadcastAddressesIPv4();
     }
 
     const vector<uint32_t> &GetBroadcastAddressesIPv4() const
@@ -65,17 +64,16 @@ class BroadcastIPFinder
         return ipAdapterAddresses;
     }
 
-    vector<uint32_t> _GetBroadcastAddressesIPv4()
+    void CreateBroadcastAddressesIPv4()
     {
-        vector<uint32_t> broadcastAddrs{};
-
         for (const auto &[ipv4, mask] : GetNICsIPv4AndMask())
         {
-            mLocalIPs.push_back(ipv4);
-            broadcastAddrs.push_back(MakeBroadcastAddressIPv4(ipv4, mask));
+            mLocalIPs.push_back(htonl(ipv4));
+            mBroadcastIPs.push_back(htonl(MakeBroadcastAddressIPv4(ipv4, mask)));
         }
 
-        return broadcastAddrs;
+        // we are adding the 255.255.255.255 broadcast address manually
+        mBroadcastIPs.push_back(numeric_limits<uint32_t>::max());
     }
 
     vector<pair<uint32_t, uint32_t>> GetNICsIPv4AndMask()
@@ -134,7 +132,7 @@ int main()
     for (const auto address : broadcastIPFinder.GetLocalIPv4s())
     {
         in_addr addr{};
-        addr.S_un.S_addr = address;
+        addr.S_un.S_addr = ntohl(address); // convert network byte order to host byte order
 
         wchar_t ip[INET6_ADDRSTRLEN]{};
         InetNtopW(AF_INET, &addr, ip, INET6_ADDRSTRLEN);
@@ -145,7 +143,7 @@ int main()
     for (const auto address : broadcastIPFinder.GetBroadcastAddressesIPv4())
     {
         in_addr addr{};
-        addr.S_un.S_addr = address;
+        addr.S_un.S_addr = ntohl(address); // convert network byte order to host byte order
 
         wchar_t ip[INET6_ADDRSTRLEN]{};
         InetNtopW(AF_INET, &addr, ip, INET6_ADDRSTRLEN);
