@@ -40,7 +40,7 @@ class BroadcastIPFinder
         DWORD errorCode{};
         do
         {
-            ipAdapterAddresses = (decltype(ipAdapterAddresses))HeapAlloc(GetProcessHeap(), 0, ipAdapterAddressesSize);
+            ipAdapterAddresses = (PIP_ADAPTER_ADDRESSES)HeapAlloc(GetProcessHeap(), 0, ipAdapterAddressesSize);
             if (!ipAdapterAddresses)
             {
                 wcout << L"Could not allocate memory IP adapter addresses because: " << GetLastError();
