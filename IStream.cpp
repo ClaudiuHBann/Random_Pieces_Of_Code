@@ -454,13 +454,13 @@ class Person : public IStream
 
 int main()
 {
-    Person contextStart(Person::Type::MALE, {1, 0, 0, 'c', 'l', 'a', 'u', 'h', 'b', 'a', 'n'}, "HBann",
+    Person personStart(Person::Type::MALE, {1, 0, 0, 'c', 'l', 'a', 'u', 'h', 'b', 'a', 'n'}, "HBann",
                         LR"(some\path.idk)", L"Claudiu", 21);
-    contextStart.Print();
+    personStart.Print();
 
-    Person contextEnd;
-    contextEnd.FromStream(move(contextStart.ToStream()));
-    contextEnd.Print();
+    Person personEnd;
+    personEnd.FromStream(move(personStart.ToStream()));
+    personEnd.Print();
 
     return 0;
 }
