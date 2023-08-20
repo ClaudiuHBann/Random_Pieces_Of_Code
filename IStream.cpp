@@ -336,7 +336,7 @@ class IStream
      * @brief Reads the size of the current sub stream inside the stream
      * @return the current sub stream size
      */
-    type_size_sub_stream ReadSize() noexcept
+    decltype(auto) ReadSize() noexcept
     {
         assert(mIndex + sizeof(type_size_sub_stream) <= mStream.size());
 
