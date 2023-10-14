@@ -36,7 +36,7 @@ class Size
 
     [[nodiscard]] static constexpr auto FindRequiredBytes(const char aSize) noexcept
     {
-        return static_cast<uint8_t>(aSize << 5);
+        return static_cast<uint8_t>(aSize >> 5);
     }
 
     [[nodiscard]] static inline auto MakeSize(const size_max aSize) noexcept
