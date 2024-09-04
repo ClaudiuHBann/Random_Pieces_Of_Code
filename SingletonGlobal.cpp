@@ -36,7 +36,9 @@ template <typename Type> class ContainerLazyPtrRaw final : public UnCopyable, pu
     ~ContainerLazyPtrRaw()
     {
         if (mCallbackUninitialize)
+        {
             mCallbackUninitialize();
+        }
     }
 
     void SetUninitialize(std::move_only_function<void()> aCallback) noexcept
@@ -70,15 +72,21 @@ class SharedMemory final
     void *Create(const uint32_t aSize, std::string_view aName)
     {
         if (mHandle)
+        {
             return mMemory;
+        }
 
         mHandle = CreateFileMappingA(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, aSize, aName.data());
         if (!mHandle)
+        {
             throw std::runtime_error("mHandle cannot be null!");
+        }
 
         mMemory = MapViewOfFile(mHandle, SECTION_MAP_WRITE | SECTION_MAP_READ, 0, 0, 0);
         if (!mMemory)
+        {
             throw std::runtime_error("mMemory cannot be null!");
+        }
 
         return mMemory;
     }
@@ -93,15 +101,88 @@ class SharedMemory final
     void Delete() noexcept
     {
         if (mMemory)
+        {
             UnmapViewOfFile(mMemory);
+            mMemory = nullptr;
+        }
 
         if (mHandle)
+        {
             CloseHandle(mHandle);
+            mHandle = nullptr;
+        }
     }
 
   private:
     void *mMemory{};
     void *mHandle{};
+};
+
+class SharedMutex final
+{
+  public:
+    constexpr SharedMutex() noexcept = default;
+    constexpr ~SharedMutex() noexcept = default;
+
+    // If the name matches an existing mutex, the function returns that mutex
+    void *Create(std::string_view aName)
+    {
+        if (mMutex)
+        {
+            return mMutex;
+        }
+
+        mMutex = CreateMutexA(nullptr, FALSE, aName.data());
+        if (!mMutex)
+        {
+            throw std::runtime_error("mMutex cannot be null!");
+        }
+
+        return mMutex;
+    }
+
+    void lock()
+    {
+        if (!mMutex)
+        {
+            throw std::runtime_error("mMutex cannot be null!");
+        }
+
+        if (mLocked)
+        {
+            throw std::runtime_error("Could not lock mutex twice!");
+        }
+
+        mLocked = WaitForSingleObject(mMutex, INFINITE) == WAIT_OBJECT_0;
+        if (!mLocked)
+        {
+            throw std::runtime_error("Could not lock mutex!");
+        }
+    }
+
+    void unlock() noexcept
+    {
+        if (!mMutex)
+        {
+            return;
+        }
+
+        assert(mLocked);
+        mLocked = !ReleaseMutex(mMutex);
+    }
+
+    void Delete() noexcept
+    {
+        if (mMutex)
+        {
+            CloseHandle(mMutex);
+            mMutex = nullptr;
+        }
+    }
+
+  private:
+    void *mMutex{};
+    bool mLocked{};
 };
 
 // A Per Process Singleton that uses shared memory
@@ -117,17 +198,19 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
 
   public:
     constexpr SingletonGlobal() noexcept = default;
-
-    virtual ~SingletonGlobal() = default;
+    constexpr virtual ~SingletonGlobal() noexcept = default;
 
     static Type &GetInstance()
     {
+        const auto sharedMutexName = std::format("SingletonGlobal<{}>::Mutex", typeid(Type).hash_code());
+        mSharedMutex.Create(sharedMutexName);
+
         return CreateInstance();
     }
 
   private:
     static inline ContainerLazyPtrRaw<Type> mInstance;
-    static inline std::mutex mMutex;
+    static inline SharedMutex mSharedMutex;
 
     static inline SharedMemory mSharedMemory;
 
@@ -143,20 +226,24 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
 
     static Type &CreateInstance()
     {
-        std::lock_guard<decltype(mMutex)> lock(mMutex);
+        std::scoped_lock lock(mSharedMutex);
 
         if (mInstance.GetPtr())
+        {
             return *mInstance.GetPtr();
+        }
 
         return Initialize();
     }
 
     static void DeleteInstance()
     {
-        std::lock_guard<decltype(mMutex)> lock(mMutex);
+        std::scoped_lock lock(mSharedMutex);
 
         if (!mInstance.GetPtr())
+        {
             return;
+        }
 
         Uninitialize();
     }
@@ -165,9 +252,9 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
     {
         // contains the instance count and the object itself
         const uint32_t sharedMemorySize = sizeof(RefCountType) + sizeof(Type);
-        const auto sharedMemoryName = std::format("SingletonGlobal<{}>", typeid(Type).hash_code());
+        const auto sharedMemoryName = std::format("SingletonGlobal<{}>::Memory", typeid(Type).hash_code());
 
-        mSharedMemory.Create(sharedMemorySize, sharedMemoryName.c_str());
+        mSharedMemory.Create(sharedMemorySize, sharedMemoryName);
 
         if (GetCount()++)
         {
@@ -191,7 +278,9 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
     static void Uninitialize()
     {
         if (--GetCount())
+        {
             return;
+        }
 
         // we cannot call the delete operator on this object
         // in conjunction with the placement new operator
@@ -199,11 +288,11 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
         mInstance.GetPtr()->~Type();
 
         mSharedMemory.Delete();
+        mSharedMutex.Delete();
     }
 };
 
 int main()
 {
-
     return 0;
 }
