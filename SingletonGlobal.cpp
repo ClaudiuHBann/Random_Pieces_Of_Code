@@ -201,14 +201,15 @@ class SharedMutex final
     bool mLocked{};
 };
 
-// A Per Process Singleton that uses shared memory
+// A Global/Per-Process Singleton that uses shared memory and named mutexes
 //
 // The shared memory layout is:
 //  2 bytes  +  the size of the object
 // ref count      the object itself
 //
-// The File Mapping has the name format: SingletonGlobal<typeid(Type).hash_code()>
-template <typename Type> class SingletonGlobal : public UnCopyable, public UnMoveable
+// The File Mapping has the name format: SingletonGlobal<Type Hash>([PID])::Memory
+// The Named Mutex has the name format: SingletonGlobal<Type Hash>([PID])::Mutex
+template <typename Type, bool global = false> class SingletonGlobal : public UnCopyable, public UnMoveable
 {
     using RefCountType = uint16_t;
 
@@ -216,17 +217,16 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
     constexpr SingletonGlobal() noexcept = default;
     constexpr virtual ~SingletonGlobal() noexcept = default;
 
-    static Type &GetInstance()
+    [[nodiscard]] static Type &GetInstance()
     {
-        const auto sharedMutexName = std::format("SingletonGlobal<{}>::Mutex", typeid(Type).hash_code());
-        mSharedMutex.Create(sharedMutexName);
+        mSharedMutex.Create(MakeNameForMutex());
 
         return CreateInstance();
     }
 
   private:
-    static inline ContainerLazyPtrRaw<Type> mInstance;
     static inline SharedMutex mSharedMutex;
+    static inline ContainerLazyPtrRaw<Type> mInstance;
 
     static inline SharedMemory mSharedMemory;
 
@@ -240,7 +240,7 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
         return mSharedMemory.GetMemory<Type *>(sizeof(RefCountType));
     }
 
-    static Type &CreateInstance()
+    [[nodiscard]] static Type &CreateInstance()
     {
         std::scoped_lock lock(mSharedMutex);
 
@@ -264,13 +264,12 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
         Uninitialize();
     }
 
-    static Type &Initialize()
+    [[nodiscard]] static Type &Initialize()
     {
         // contains the instance count and the object itself
         const uint32_t sharedMemorySize = sizeof(RefCountType) + sizeof(Type);
-        const auto sharedMemoryName = std::format("SingletonGlobal<{}>::Memory", typeid(Type).hash_code());
 
-        mSharedMemory.Create(sharedMemorySize, sharedMemoryName);
+        mSharedMemory.Create(sharedMemorySize, MakeNameForMemory());
 
         if (GetCount()++)
         {
@@ -305,6 +304,30 @@ template <typename Type> class SingletonGlobal : public UnCopyable, public UnMov
 
         mSharedMemory.Delete();
         mSharedMutex.Delete();
+    }
+
+    [[nodiscard]] static std::string MakeNameForMemory() noexcept
+    {
+        if constexpr (global)
+        {
+            return std::format("SingletonGlobal<{}>()::Memory", typeid(Type).hash_code());
+        }
+        else
+        {
+            return std::format("SingletonGlobal<{}>({})::Memory", typeid(Type).hash_code(), _getpid());
+        }
+    }
+
+    [[nodiscard]] static std::string MakeNameForMutex() noexcept
+    {
+        if constexpr (global)
+        {
+            return std::format("SingletonGlobal<{}>()::Mutex", typeid(Type).hash_code());
+        }
+        else
+        {
+            return std::format("SingletonGlobal<{}>({})::Mutex", typeid(Type).hash_code(), _getpid());
+        }
     }
 };
 
