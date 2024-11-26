@@ -58,7 +58,7 @@ class CRC64
             uint64_t c = i << 56;
             for (uint64_t j = 0; j < 8; j++)
             {
-                const auto xorPoly = (crc ^ c) & 0x8000000000000000ULL;
+                const auto xorPoly = (crc ^ c) & (std::numeric_limits<int64_t>::max() + 1);
 
                 crc <<= 1;
                 if (xorPoly)
